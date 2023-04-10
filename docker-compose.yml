@@ -1,0 +1,152 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    volumes:
+      - /data/postgres:/data/postgres
+    env_file:
+      - .env.production
+
+  mail:
+    build:
+      context: ./
+      dockerfile: ./apps/mail/Dockerfile
+    ports:
+      - "63101:59101"
+    env_file:
+      - .env.production
+
+  user:
+    build:
+      context: ./
+      dockerfile: ./apps/user/Dockerfile
+    ports:
+      - "63202:59202"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  auth:
+    build:
+      context: ./
+      dockerfile: ./apps/auth/Dockerfile
+    ports:
+      - "63303:59303"
+    env_file:
+      - .env.production
+    depends_on:
+      - mail
+      - user
+
+  customer:
+    build:
+      context: ./
+      dockerfile: ./apps/customer/Dockerfile
+    ports:
+      - "63404:59404"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - auth
+
+  business:
+    build:
+      context: ./
+      dockerfile: ./apps/business/Dockerfile
+    ports:
+      - "63505:59505"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - auth
+
+  category:
+    build:
+      context: ./
+      dockerfile: ./apps/category/Dockerfile
+    ports:
+      - "63606:59606"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  attribute:
+    build:
+      context: ./
+      dockerfile: ./apps/attribute/Dockerfile
+    ports:
+      - "63707:59707"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  discount:
+    build:
+      context: ./
+      dockerfile: ./apps/discount/Dockerfile
+    ports:
+      - "63808:59808"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  product:
+    build:
+      context: ./
+      dockerfile: ./apps/product/Dockerfile
+    ports:
+      - "63909:59909"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  order:
+    build:
+      context: ./
+      dockerfile: ./apps/order/Dockerfile
+    ports:
+      - "64101:60101"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+
+  cart:
+    build:
+      context: ./
+      dockerfile: ./apps/cart/Dockerfile
+    ports:
+      - "64202:60202"
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - order
+
+  api:
+    build:
+      context: ./
+      dockerfile: ./apps/api/Dockerfile
+    ports:
+      - "80:80"
+    env_file:
+      - .env.production
+    depends_on:
+      - auth
+      - customer
+      - business
+      - category
+      - attribute
+      - discount
+      - product
+      - order
+      - cart

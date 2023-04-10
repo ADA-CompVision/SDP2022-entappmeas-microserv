@@ -1,0 +1,109 @@
+{
+  "name": "gift-microservices",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "prisma generate && nest build",
+    "build:frontend": "cd ../gift && npm i && npx prisma generate && cd ../gift/apps/frontend && npx tsc && npx vite build --outDir ../../../gift-microservices/public",
+    "build:no-tests-cache": "npm run build:frontend && docker compose build",
+    "build:no-tests-no-cache": "npm run build:frontend && docker compose build --no-cache",
+    "deploy:no-tests-cache": "npm run build:frontend && docker compose build && docker compose up -d",
+    "deploy:no-tests-no-cache": "npm run build:frontend && docker compose build --no-cache && docker compose up -d",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
+    "start": "prisma migrate deploy && node dist/apps/api/main",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/apps/api/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json",
+    "start:mail": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput mail",
+    "start:user": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput user",
+    "start:auth": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput auth",
+    "start:customer": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput customer",
+    "start:business": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput business",
+    "start:category": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput category",
+    "start:attribute": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput attribute",
+    "start:discount": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput discount",
+    "start:product": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput product",
+    "start:order": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput order",
+    "start:cart": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput cart",
+    "start:api": "dotenv -e .env.development -- nest start --watch --preserveWatchOutput api"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.309.0",
+    "@nestjs-modules/mailer": "^1.8.1",
+    "@nestjs/axios": "^2.0.0",
+    "@nestjs/common": "^9.4.0",
+    "@nestjs/config": "^2.3.1",
+    "@nestjs/core": "^9.4.0",
+    "@nestjs/jwt": "^10.0.3",
+    "@nestjs/platform-express": "^9.4.0",
+    "@nestjs/serve-static": "^3.0.1",
+    "@nestjs/swagger": "^6.3.0",
+    "@prisma/client": "^4.12.0",
+    "axios": "^1.3.5",
+    "bcrypt": "^5.1.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "form-data": "^4.0.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^9.3.0",
+    "@nestjs/schematics": "^9.1.0",
+    "@nestjs/testing": "^9.4.0",
+    "@types/bcrypt": "^5.0.0",
+    "@types/express": "^4.17.17",
+    "@types/jest": "29.5.0",
+    "@types/multer": "^1.4.7",
+    "@types/node": "18.15.11",
+    "@types/passport-jwt": "^3.0.8",
+    "@types/passport-local": "^1.0.35",
+    "@types/supertest": "^2.0.12",
+    "@typescript-eslint/eslint-plugin": "^5.57.1",
+    "@typescript-eslint/parser": "^5.57.1",
+    "dotenv-cli": "^7.2.1",
+    "eslint": "^8.38.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "jest": "29.5.0",
+    "prettier": "^2.8.7",
+    "prettier-plugin-organize-imports": "^3.2.2",
+    "prisma": "^4.12.0",
+    "source-map-support": "^0.5.21",
+    "supertest": "^6.3.3",
+    "ts-jest": "29.1.0",
+    "ts-loader": "^9.4.2",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "4.2.0",
+    "typescript": "^5.0.4"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "moduleNameMapper": {
+      "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
+    }
+  }
+}
