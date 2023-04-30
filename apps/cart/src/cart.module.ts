@@ -1,7 +1,8 @@
-import { PrismaService } from "@app/shared";
+import { PrismaService } from "@app/common";
 import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ClientsModule, Transport } from "@nestjs/microservices";
 import { CartController } from "./cart.controller";
 import { CartService } from "./cart.service";
 
@@ -11,8 +12,21 @@ import { CartService } from "./cart.service";
       isGlobal: true,
     }),
     HttpModule,
+    ClientsModule.registerAsync([
+      {
+        name: "payment",
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get("PAYMENT_TCP_SERVICE_HOST"),
+            port: configService.get("PAYMENT_TCP_SERVICE_PORT"),
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
   ],
   controllers: [CartController],
-  providers: [CartService, PrismaService],
+  providers: [PrismaService, CartService],
 })
 export class CartModule {}

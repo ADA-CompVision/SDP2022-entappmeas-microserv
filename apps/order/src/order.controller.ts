@@ -1,21 +1,15 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
-import { OrderService } from "./order.service";
+import { AuthGuard, PrismaService, Roles } from "@app/common";
+import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Role } from "@prisma/client";
 
 @Controller("order")
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
-  @Post()
-  async create(
-    @Body()
-    data: Prisma.XOR<Prisma.OrderCreateInput, Prisma.OrderUncheckedCreateInput>,
-  ) {
-    return this.orderService.create({ data });
-  }
-
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Get()
   async findMany() {
-    return this.orderService.findMany();
+    return this.prismaService.order.findMany();
   }
 }

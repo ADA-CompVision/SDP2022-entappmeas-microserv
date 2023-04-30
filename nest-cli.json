@@ -7,9 +7,16 @@
     "webpack": true,
     "tsConfigPath": "apps/api/tsconfig.app.json"
   },
-  "monorepo": true,
-  "root": "apps/api",
   "projects": {
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
+      }
+    },
     "api": {
       "type": "application",
       "root": "apps/api",
@@ -26,24 +33,6 @@
       "sourceRoot": "apps/auth/src",
       "compilerOptions": {
         "tsConfigPath": "apps/auth/tsconfig.app.json"
-      }
-    },
-    "shared": {
-      "type": "library",
-      "root": "libs/shared",
-      "entryFile": "index",
-      "sourceRoot": "libs/shared/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/shared/tsconfig.lib.json"
-      }
-    },
-    "user": {
-      "type": "application",
-      "root": "apps/user",
-      "entryFile": "main",
-      "sourceRoot": "apps/user/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/user/tsconfig.app.json"
       }
     },
     "customer": {
@@ -64,6 +53,15 @@
         "tsConfigPath": "apps/business/tsconfig.app.json"
       }
     },
+    "mail": {
+      "type": "application",
+      "root": "apps/mail",
+      "entryFile": "main",
+      "sourceRoot": "apps/mail/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/mail/tsconfig.app.json"
+      }
+    },
     "category": {
       "type": "application",
       "root": "apps/category",
@@ -80,15 +78,6 @@
       "sourceRoot": "apps/attribute/src",
       "compilerOptions": {
         "tsConfigPath": "apps/attribute/tsconfig.app.json"
-      }
-    },
-    "mail": {
-      "type": "application",
-      "root": "apps/mail",
-      "entryFile": "main",
-      "sourceRoot": "apps/mail/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/mail/tsconfig.app.json"
       }
     },
     "discount": {
@@ -118,6 +107,15 @@
         "tsConfigPath": "apps/cart/tsconfig.app.json"
       }
     },
+    "payment": {
+      "type": "application",
+      "root": "apps/payment",
+      "entryFile": "main",
+      "sourceRoot": "apps/payment/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/payment/tsconfig.app.json"
+      }
+    },
     "order": {
       "type": "application",
       "root": "apps/order",
@@ -127,5 +125,7 @@
         "tsConfigPath": "apps/order/tsconfig.app.json"
       }
     }
-  }
+  },
+  "monorepo": true,
+  "root": "apps/api"
 }

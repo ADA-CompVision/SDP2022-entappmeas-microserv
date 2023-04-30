@@ -1,46 +1,59 @@
 import {
+  AccountWithoutPassword,
+  AuthGuard,
   CreateProductDto,
+  GetUser,
   Price,
+  PrismaService,
   ProductAttribute,
+  Roles,
   S3Service,
   UpdateProductDto,
-} from "@app/shared";
+} from "@app/common";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import {
-  BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   ForbiddenException,
   Get,
+  InternalServerErrorException,
   NotFoundException,
   Param,
+  ParseArrayPipe,
   ParseIntPipe,
   Patch,
   Post,
   Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Role } from "@prisma/client";
 import { randomUUID } from "crypto";
-import { ProductService } from "./product.service";
 
 @Controller("product")
 export class ProductController {
   constructor(
     private readonly configService: ConfigService,
-    private readonly productService: ProductService,
+    private readonly prismaService: PrismaService,
     private readonly s3Service: S3Service,
   ) {}
 
+  @Get("health")
+  async health() {
+    return "product";
+  }
+
+  @Roles(Role.ADMIN, Role.BUSINESS)
+  @UseGuards(AuthGuard)
   @UseInterceptors(FilesInterceptor("images"))
   @Post()
   async create(
-    @Query("userId", new ParseIntPipe()) userId: number,
-    @Query("userRole") userRole: string,
+    @GetUser() user: AccountWithoutPassword,
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() images: Array<Express.Multer.File>,
   ) {
@@ -77,12 +90,12 @@ export class ProductController {
         _images.push({ key, url });
       }
 
-      return this.productService.create({
+      return this.prismaService.product.create({
         data: {
           name,
           description,
           categoryId,
-          businessUserId: userRole === Role.BUSINESS ? userId : null,
+          businessUserId: user.role === Role.BUSINESS ? user.id : null,
           productAttributes: {
             createMany: parsedAttributes
               ? {
@@ -106,37 +119,56 @@ export class ProductController {
                 : undefined,
           },
         },
-        include: {
-          category: true,
-          productAttributes: true,
-          prices: true,
-          images: true,
-        },
       });
     } catch {
-      throw new BadRequestException();
+      throw new InternalServerErrorException();
     }
   }
 
   @Get()
-  async findMany() {
-    return this.productService.findMany({
+  async findMany(
+    @Query("take", new DefaultValuePipe(8), ParseIntPipe) take: number,
+    @Query("cursor") cursor?: string,
+    @Query("name") name?: string,
+    @Query("categories", new ParseArrayPipe({ items: String, optional: true }))
+    categories?: string[],
+  ) {
+    const products = await this.prismaService.product.findMany({
+      take,
+      skip: cursor ? 1 : 0,
+      cursor: cursor ? { id: cursor } : undefined,
+      orderBy: [
+        {
+          createdAt: "desc",
+        },
+        { id: "asc" },
+      ],
       include: {
         category: true,
-        productAttributes: true,
         prices: true,
         images: true,
         business: true,
       },
-      orderBy: {
-        createdAt: "desc",
+      where: {
+        name: {
+          contains: name,
+          mode: "insensitive",
+        },
+        categoryId: {
+          in: categories,
+        },
       },
     });
+
+    return {
+      products,
+      cursor: products.length === take ? products[take - 1].id : undefined,
+    };
   }
 
   @Get(":id")
   async findUnique(@Param("id") id: string) {
-    const product = await this.productService.findUnique({
+    const product = await this.prismaService.product.findUnique({
       where: { id },
       include: {
         category: true,
@@ -154,16 +186,17 @@ export class ProductController {
     return product;
   }
 
+  @Roles(Role.ADMIN, Role.BUSINESS)
+  @UseGuards(AuthGuard)
   @UseInterceptors(FilesInterceptor("images"))
   @Patch(":id")
   async update(
+    @GetUser() user: AccountWithoutPassword,
     @Param("id") id: string,
-    @Query("userId", new ParseIntPipe()) userId: number,
-    @Query("userRole") userRole: string,
     @Body() updateProductDto: UpdateProductDto,
     @UploadedFiles() images: Array<Express.Multer.File>,
   ) {
-    const product = await this.productService.findUnique({
+    const product = await this.prismaService.product.findUnique({
       where: { id },
     });
 
@@ -171,7 +204,7 @@ export class ProductController {
       throw new NotFoundException("Product not found");
     }
 
-    if (userRole === Role.BUSINESS && product.businessUserId !== userId) {
+    if (user.role === Role.BUSINESS && product.businessUserId !== user.id) {
       throw new ForbiddenException();
     }
 
@@ -208,7 +241,7 @@ export class ProductController {
         _images.push({ key, url });
       }
 
-      return this.productService.update({
+      return this.prismaService.product.update({
         data: {
           name,
           description,
@@ -240,25 +273,20 @@ export class ProductController {
           },
         },
         where: { id },
-        include: {
-          category: true,
-          productAttributes: true,
-          prices: true,
-          images: true,
-        },
       });
     } catch {
-      throw new BadRequestException();
+      throw new InternalServerErrorException();
     }
   }
 
+  @Roles(Role.ADMIN, Role.BUSINESS)
+  @UseGuards(AuthGuard)
   @Delete(":id")
   async delete(
+    @GetUser() user: AccountWithoutPassword,
     @Param("id") id: string,
-    @Query("userId", new ParseIntPipe()) userId: number,
-    @Query("userRole") userRole: string,
   ) {
-    const product = await this.productService.findUnique({
+    const product = await this.prismaService.product.findUnique({
       where: { id },
     });
 
@@ -266,11 +294,11 @@ export class ProductController {
       throw new NotFoundException("Product not found");
     }
 
-    if (userRole === Role.BUSINESS && product.businessUserId !== userId) {
+    if (user.role === Role.BUSINESS && product.businessUserId !== user.id) {
       throw new ForbiddenException();
     }
 
-    return this.productService.delete({
+    return this.prismaService.product.delete({
       where: { id },
     });
   }

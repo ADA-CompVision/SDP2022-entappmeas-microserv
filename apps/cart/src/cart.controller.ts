@@ -1,15 +1,30 @@
-import { CheckoutDto, CreateCartDto } from "@app/shared";
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import {
+  AccountWithoutPassword,
+  AuthGuard,
+  CheckoutDto,
+  CreateCartDto,
+  GetUser,
+  Roles,
+} from "@app/common";
+import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Role } from "@prisma/client";
 import { CartService } from "./cart.service";
 
 @Controller("cart")
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
-  @Get(":userId")
-  async getCart(@Param("userId") userId: number) {
+  @Get("health")
+  async health() {
+    return "cart";
+  }
+
+  @Roles(Role.CUSTOMER)
+  @UseGuards(AuthGuard)
+  @Get()
+  async getCart(@GetUser() user: AccountWithoutPassword) {
     return this.cartService.findMany({
-      where: { userId },
+      where: { userId: user.id },
       include: {
         product: {
           include: {
@@ -21,32 +36,38 @@ export class CartController {
     });
   }
 
-  @Post(":userId")
+  @Roles(Role.CUSTOMER)
+  @UseGuards(AuthGuard)
+  @Post()
   async addToCart(
-    @Param("userId") userId: number,
+    @GetUser() user: AccountWithoutPassword,
     @Body() createCartDto: CreateCartDto,
   ) {
-    return this.cartService.addToCart(userId, createCartDto);
+    return this.cartService.addToCart(user.id, createCartDto);
   }
 
-  @Get("total/:userId")
+  @Roles(Role.CUSTOMER)
+  @UseGuards(AuthGuard)
+  @Get("total")
   async getCartTotal(
-    @Param("userId") userId: number,
+    @GetUser() user: AccountWithoutPassword,
     @Query("discountCode") discountCode?: string,
   ) {
     const { total, discountTotal } = await this.cartService.findTotal(
-      userId,
+      user.id,
       discountCode,
     );
 
     return { total, discountTotal };
   }
 
-  @Post("checkout/:userId")
+  @Roles(Role.CUSTOMER)
+  @UseGuards(AuthGuard)
+  @Post("checkout")
   async checkout(
-    @Param("userId") userId: number,
+    @GetUser() user: AccountWithoutPassword,
     @Body() checkoutDto: CheckoutDto,
   ) {
-    return this.cartService.checkout(userId, checkoutDto);
+    return this.cartService.checkout(user, checkoutDto);
   }
 }

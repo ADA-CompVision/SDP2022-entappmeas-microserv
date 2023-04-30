@@ -1,11 +1,14 @@
+import { PrismaService } from "@app/common";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import { Transport } from "@nestjs/microservices";
 import { AuthModule } from "./auth.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AuthModule);
   const configService = app.get(ConfigService);
+  const prismaService = app.get(PrismaService);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -14,6 +17,17 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(configService.get<number>("AUTH_SERVICE_PORT"));
+  app.connectMicroservice({
+    transport: Transport.TCP,
+    options: {
+      host: "0.0.0.0",
+      port: configService.get("AUTH_TCP_SERVICE_PORT"),
+    },
+  });
+
+  await prismaService.enableShutdownHooks(app);
+
+  await app.startAllMicroservices();
+  await app.listen(configService.get<number>("AUTH_HTTP_SERVICE_PORT"));
 }
 bootstrap();

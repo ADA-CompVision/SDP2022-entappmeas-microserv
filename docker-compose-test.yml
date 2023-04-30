@@ -1,0 +1,145 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - "5433:5432"
+    env_file:
+      - .env.test
+    networks:
+      - ms_test
+
+  auth-test:
+    build:
+      context: .
+      dockerfile: ./apps/auth/Dockerfile
+      target: test
+    command: pnpm start auth
+    env_file:
+      - .env.test
+    ports:
+      - "5001:5001"
+      - "15001:15001"
+    networks:
+      - ms_test
+
+  customer-test:
+    build:
+      context: .
+      dockerfile: ./apps/customer/Dockerfile
+      target: test
+    command: pnpm start customer
+    env_file:
+      - .env.test
+    ports:
+      - "5002:5002"
+    networks:
+      - ms_test
+
+  business-test:
+    build:
+      context: .
+      dockerfile: ./apps/business/Dockerfile
+      target: test
+    command: pnpm start business
+    env_file:
+      - .env.test
+    ports:
+      - "5003:5003"
+    networks:
+      - ms_test
+
+  category-test:
+    build:
+      context: .
+      dockerfile: ./apps/category/Dockerfile
+      target: test
+    command: pnpm start category
+    env_file:
+      - .env.test
+    ports:
+      - "5004:5004"
+    networks:
+      - ms_test
+
+  attribute-test:
+    build:
+      context: .
+      dockerfile: ./apps/attribute/Dockerfile
+      target: test
+    command: pnpm start attribute
+    env_file:
+      - .env.test
+    ports:
+      - "5005:5005"
+    networks:
+      - ms_test
+
+  discount-test:
+    build:
+      context: .
+      dockerfile: ./apps/discount/Dockerfile
+      target: test
+    command: pnpm start discount
+    env_file:
+      - .env.test
+    ports:
+      - "5006:5006"
+    networks:
+      - ms_test
+
+  product-test:
+    build:
+      context: .
+      dockerfile: ./apps/product/Dockerfile
+      target: test
+    command: pnpm start product
+    env_file:
+      - .env.test
+    ports:
+      - "5007:5007"
+    networks:
+      - ms_test
+
+  cart-test:
+    build:
+      context: .
+      dockerfile: ./apps/cart/Dockerfile
+      target: test
+    command: pnpm start cart
+    env_file:
+      - .env.test
+    ports:
+      - "5009:5009"
+    networks:
+      - ms_test
+
+  payment-test:
+    build:
+      context: .
+      dockerfile: ./apps/payment/Dockerfile
+      target: test
+    command: pnpm start payment
+    env_file:
+      - .env.test
+    ports:
+      - "15011:15011"
+    networks:
+      - ms_test
+
+  api-test:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+      target: test
+    command: pnpm start api
+    env_file:
+      - .env.test
+    ports:
+      - "5000:5000"
+    networks:
+      - ms_test
+
+networks:
+  ms_test:
+    driver: bridge

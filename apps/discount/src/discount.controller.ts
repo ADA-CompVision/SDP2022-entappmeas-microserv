@@ -1,4 +1,10 @@
-import { CreateDiscountDto, UpdateDiscountDto } from "@app/shared";
+import {
+  AuthGuard,
+  CreateDiscountDto,
+  PrismaService,
+  Roles,
+  UpdateDiscountDto,
+} from "@app/common";
 import {
   Body,
   Controller,
@@ -8,28 +14,40 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from "@nestjs/common";
-import { DiscountService } from "./discount.service";
+import { Role } from "@prisma/client";
 
 @Controller("discount")
 export class DiscountController {
-  constructor(private readonly discountService: DiscountService) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
+  @Get("health")
+  async health() {
+    return "discount";
+  }
+
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Post()
   async create(@Body() createDiscountDto: CreateDiscountDto) {
-    return this.discountService.create({
+    return this.prismaService.discount.create({
       data: createDiscountDto,
     });
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Get()
   async findAll() {
-    return this.discountService.findMany();
+    return this.prismaService.discount.findMany();
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Get(":id")
   async findUnique(@Param("id") id: string) {
-    const discount = await this.discountService.findUnique({
+    const discount = await this.prismaService.discount.findUnique({
       where: { id },
     });
 
@@ -42,23 +60,21 @@ export class DiscountController {
 
   @Get("code/:code")
   async findByCode(@Param("code") code: string) {
-    const discount = await this.discountService.findUnique({
+    const discount = await this.prismaService.discount.findUnique({
       where: { code },
     });
-
-    if (!discount) {
-      throw new NotFoundException("Discount not found");
-    }
 
     return discount;
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Patch(":id")
   async update(
     @Param("id") id: string,
     @Body() updateDiscountDto: UpdateDiscountDto,
   ) {
-    const discount = await this.discountService.findUnique({
+    const discount = await this.prismaService.discount.findUnique({
       where: { id },
     });
 
@@ -66,15 +82,17 @@ export class DiscountController {
       throw new NotFoundException("Discount not found");
     }
 
-    return this.discountService.update({
+    return this.prismaService.discount.update({
       data: updateDiscountDto,
       where: { id },
     });
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Delete(":id")
   async delete(@Param("id") id: string) {
-    const discount = await this.discountService.findUnique({
+    const discount = await this.prismaService.discount.findUnique({
       where: { id },
     });
 
@@ -82,26 +100,8 @@ export class DiscountController {
       throw new NotFoundException("Discount not found");
     }
 
-    return this.discountService.delete({
+    return this.prismaService.discount.delete({
       where: { id },
     });
-  }
-
-  @Get("decrement/:code")
-  async decrement(@Param("code") code: string) {
-    const discount = await this.discountService.findUnique({
-      where: { code },
-    });
-
-    if (discount.limit) {
-      return this.discountService.update({
-        data: {
-          remaining: { decrement: 1 },
-        },
-        where: { code },
-      });
-    } else {
-      return null;
-    }
   }
 }

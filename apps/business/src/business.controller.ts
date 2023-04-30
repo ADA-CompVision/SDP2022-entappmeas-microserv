@@ -1,56 +1,42 @@
-import { CreateBusinessDto, hash, PrismaService } from "@app/shared";
-import { HttpService } from "@nestjs/axios";
-import { Body, Controller, Post } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { CreateBusinessDto, PrismaService, hash } from "@app/common";
+import { Body, Controller, Get, Inject, Post } from "@nestjs/common";
+import { ClientProxy } from "@nestjs/microservices";
 import { Role } from "@prisma/client";
-import { AxiosError } from "axios";
-import { catchError, lastValueFrom, map } from "rxjs";
 
 @Controller("business")
 export class BusinessController {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly httpService: HttpService,
     private readonly prismaService: PrismaService,
+    @Inject("auth") private readonly authService: ClientProxy,
   ) {}
+
+  @Get("health")
+  async health() {
+    return "business";
+  }
 
   @Post("register")
   async register(
     @Body()
     { name, ...user }: CreateBusinessDto,
   ) {
-    const password = hash(user.password);
-
     const business = await this.prismaService.user.create({
       data: {
         ...user,
-        password,
+        password: hash(user.password),
         role: Role.BUSINESS,
         business: { create: { name } },
       },
-      include: {
-        customer: true,
-        business: true,
-        image: true,
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
-    delete business.password;
-
-    lastValueFrom(
-      this.httpService
-        .get(
-          `${this.configService.get<string>(
-            "AUTH_SERVICE_URL",
-          )}/auth/send-confirmation-email/${business.id}`,
-        )
-        .pipe(
-          map((response) => response.data),
-          catchError((error: AxiosError) => {
-            throw error.response.data;
-          }),
-        ),
-    );
+    this.authService.emit("send-confirmation-email", business.id);
 
     return business;
   }

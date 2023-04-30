@@ -1,16 +1,17 @@
-import { PrismaService, S3Service } from "@app/shared";
+import { PrismaService, S3Service } from "@app/common";
+import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ProductController } from "./product.controller";
-import { ProductService } from "./product.service";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    HttpModule,
   ],
   controllers: [ProductController],
-  providers: [ProductService, PrismaService, S3Service],
+  providers: [PrismaService, S3Service],
 })
 export class ProductModule {}

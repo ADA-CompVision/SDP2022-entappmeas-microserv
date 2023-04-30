@@ -1,4 +1,10 @@
-import { CreateCategoryDto, UpdateCategoryDto } from "@app/shared";
+import {
+  AuthGuard,
+  CreateCategoryDto,
+  PrismaService,
+  Roles,
+  UpdateCategoryDto,
+} from "@app/common";
 import {
   Body,
   Controller,
@@ -8,18 +14,26 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from "@nestjs/common";
-import { CategoryService } from "./category.service";
+import { Role } from "@prisma/client";
 
 @Controller("category")
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
+  @Get("health")
+  async health() {
+    return "category";
+  }
+
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Post()
   async create(@Body() createCategoryDto: CreateCategoryDto) {
     const { attributes, ...rest } = createCategoryDto;
 
-    return this.categoryService.create({
+    return this.prismaService.category.create({
       data: {
         ...rest,
         attributes: {
@@ -32,12 +46,12 @@ export class CategoryController {
 
   @Get()
   async findMany() {
-    return this.categoryService.findMany({ include: { attributes: true } });
+    return this.prismaService.category.findMany();
   }
 
   @Get(":id")
   async findUnique(@Param("id") id: string) {
-    const category = await this.categoryService.findUnique({
+    const category = await this.prismaService.category.findUnique({
       where: { id },
       include: { attributes: true },
     });
@@ -49,12 +63,14 @@ export class CategoryController {
     return category;
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Patch(":id")
   async update(
     @Param("id") id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
-    const category = await this.categoryService.findUnique({
+    const category = await this.prismaService.category.findUnique({
       where: { id },
       include: {
         attributes: true,
@@ -82,7 +98,7 @@ export class CategoryController {
           .map((id) => ({ id }))
       : undefined;
 
-    return this.categoryService.update({
+    return this.prismaService.category.update({
       data: {
         ...rest,
         attributes: {
@@ -95,9 +111,11 @@ export class CategoryController {
     });
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
   @Delete(":id")
   async delete(@Param("id") id: string) {
-    const category = await this.categoryService.findUnique({
+    const category = await this.prismaService.category.findUnique({
       where: { id },
     });
 
@@ -105,9 +123,8 @@ export class CategoryController {
       throw new NotFoundException("Category not found");
     }
 
-    return this.categoryService.delete({
+    return this.prismaService.category.delete({
       where: { id },
-      include: { attributes: true },
     });
   }
 }

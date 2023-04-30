@@ -1,4 +1,4 @@
-import { PrismaService } from "@app/shared";
+import { PrismaService } from "@app/common";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -18,6 +18,6 @@ async function bootstrap() {
 
   await prismaService.enableShutdownHooks(app);
 
-  await app.listen(configService.get<number>("CART_SERVICE_PORT"));
+  await app.listen(configService.get<number>("CART_HTTP_SERVICE_PORT"));
 }
 bootstrap();

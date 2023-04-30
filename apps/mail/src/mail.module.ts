@@ -20,7 +20,7 @@ import { MailService } from "./mail.service";
           },
         },
         defaults: {
-          from: "admin@eminaliyev.tech",
+          from: configService.get<string>("EMAIL_USER"),
         },
       }),
       inject: [ConfigService],

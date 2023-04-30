@@ -1,7 +1,7 @@
-import { PrismaService } from "@app/shared";
-import { HttpModule } from "@nestjs/axios";
+import { PrismaService } from "@app/common";
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ClientsModule, Transport } from "@nestjs/microservices";
 import { BusinessController } from "./business.controller";
 
 @Module({
@@ -9,7 +9,19 @@ import { BusinessController } from "./business.controller";
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    HttpModule,
+    ClientsModule.registerAsync([
+      {
+        name: "auth",
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get("AUTH_TCP_SERVICE_HOST"),
+            port: configService.get("AUTH_TCP_SERVICE_PORT"),
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
   ],
   controllers: [BusinessController],
   providers: [PrismaService],

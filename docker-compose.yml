@@ -2,145 +2,158 @@ version: "3.8"
 services:
   postgres:
     image: postgres:latest
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    volumes:
-      - /data/postgres:/data/postgres
     env_file:
       - .env.production
-
-  mail:
-    build:
-      context: ./
-      dockerfile: ./apps/mail/Dockerfile
-    ports:
-      - "63101:59101"
-    env_file:
-      - .env.production
-
-  user:
-    build:
-      context: ./
-      dockerfile: ./apps/user/Dockerfile
-    ports:
-      - "63202:59202"
-    env_file:
-      - .env.production
-    depends_on:
-      - postgres
 
   auth:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/auth/Dockerfile
-    ports:
-      - "63303:59303"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3001:3001"
+      - "9001:9001"
     depends_on:
+      - postgres
       - mail
-      - user
 
   customer:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/customer/Dockerfile
-    ports:
-      - "63404:59404"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3002:3002"
     depends_on:
-      - postgres
       - auth
 
   business:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/business/Dockerfile
-    ports:
-      - "63505:59505"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3003:3003"
     depends_on:
-      - postgres
       - auth
 
   category:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/category/Dockerfile
-    ports:
-      - "63606:59606"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3004:3004"
     depends_on:
       - postgres
 
   attribute:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/attribute/Dockerfile
-    ports:
-      - "63707:59707"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3005:3005"
     depends_on:
       - postgres
 
   discount:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/discount/Dockerfile
-    ports:
-      - "63808:59808"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3006:3006"
     depends_on:
       - postgres
 
   product:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/product/Dockerfile
-    ports:
-      - "63909:59909"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3007:3007"
     depends_on:
       - postgres
 
   order:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/order/Dockerfile
-    ports:
-      - "64101:60101"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3008:3008"
     depends_on:
       - postgres
 
   cart:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/cart/Dockerfile
-    ports:
-      - "64202:60202"
+      target: production
     env_file:
       - .env.production
+    ports:
+      - "3009:3009"
     depends_on:
-      - postgres
-      - order
+      - payment
+      - discount
+
+  mail:
+    build:
+      context: .
+      dockerfile: ./apps/mail/Dockerfile
+      target: production
+    env_file:
+      - .env.production
+    ports:
+      - "9010:9010"
+
+  payment:
+    build:
+      context: .
+      dockerfile: ./apps/payment/Dockerfile
+      target: production
+    env_file:
+      - .env.production
+    ports:
+      - "9011:9011"
+    depends_on:
+      - mail
 
   api:
     build:
-      context: ./
+      context: .
       dockerfile: ./apps/api/Dockerfile
-    ports:
-      - "80:80"
+      target: production
+    command: pnpm start:prod
     env_file:
       - .env.production
+    ports:
+      - "3000:3000"
     depends_on:
+      - postgres
       - auth
       - customer
       - business
@@ -150,3 +163,8 @@ services:
       - product
       - order
       - cart
+      - mail
+      - payment
+
+volumes:
+  pgdata:

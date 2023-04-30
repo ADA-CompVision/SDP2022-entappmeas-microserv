@@ -12,22 +12,24 @@ import {
   CreateUserDto,
   GetUser,
   LoginUserDto,
-  RoleGuard,
   Roles,
+  Token,
   UpdateAttributeDto,
   UpdateCategoryDto,
   UpdateDiscountDto,
   UpdateProductDto,
   UpdateUserDto,
-} from "@app/shared";
+} from "@app/common";
 import { HttpService } from "@nestjs/axios";
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
-  HttpCode,
   Param,
+  ParseArrayPipe,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -41,9 +43,8 @@ import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { Role } from "@prisma/client";
 import { AxiosError } from "axios";
-import { catchError, lastValueFrom, map } from "rxjs";
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const FormData = require("form-data");
+import * as FormData from "form-data";
+import { catchError, map } from "rxjs";
 
 @Controller()
 export class AppController {
@@ -52,30 +53,36 @@ export class AppController {
     private readonly httpService: HttpService,
   ) {}
 
+  @Get("health")
+  async health() {
+    return "health";
+  }
+
   @ApiTags("Auth")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Post("auth/register")
-  async register(@Body() createUserDto: CreateUserDto) {
+  async register(@Token() token: string, @Body() createUserDto: CreateUserDto) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "AUTH_SERVICE_URL",
-            )}/auth/register`,
-            createUserDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "AUTH_HTTP_SERVICE_URL",
+          )}/auth/register`,
+          createUserDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -83,27 +90,21 @@ export class AppController {
 
   @ApiTags("Auth")
   @Post("auth/login")
-  @HttpCode(200)
   async login(@Body() loginUserDto: LoginUserDto) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post<{
-            user: AccountWithoutPassword;
-            accessToken: string;
-          }>(
-            `${this.configService.get<string>("AUTH_SERVICE_URL")}/auth/login`,
-            loginUserDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "AUTH_HTTP_SERVICE_URL",
+          )}/auth/login`,
+          loginUserDto,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -114,27 +115,7 @@ export class AppController {
   @UseGuards(AuthGuard)
   @Get("auth/account")
   async getAccount(@GetUser() user: AccountWithoutPassword) {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "AUTH_SERVICE_URL",
-            )}/auth/account`,
-            { params: { id: user.id } },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return user;
   }
 
   @ApiTags("Auth")
@@ -144,7 +125,7 @@ export class AppController {
   @UseInterceptors(FileInterceptor("image"))
   @Patch("auth/account")
   async updateAccount(
-    @GetUser() user: AccountWithoutPassword,
+    @Token() token: string,
     @Body() updateUserDto: UpdateUserDto,
     @UploadedFile() image: Express.Multer.File,
   ) {
@@ -156,24 +137,24 @@ export class AppController {
       formData.append("image", Buffer.from(image.buffer), image.originalname);
 
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .patch<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "AUTH_SERVICE_URL",
-            )}/auth/account/${user.id}`,
-            formData,
-            { headers: formData.getHeaders() },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .patch<AccountWithoutPassword>(
+          `${this.configService.get<string>(
+            "AUTH_HTTP_SERVICE_URL",
+          )}/auth/account`,
+          formData,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -183,23 +164,19 @@ export class AppController {
   @Get("auth/confirm")
   async confirmEmail(@Query("hash") hash: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "AUTH_SERVICE_URL",
-            )}/auth/confirm`,
-            { params: { hash } },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get<AccountWithoutPassword>(
+          `${this.configService.get<string>(
+            "AUTH_HTTP_SERVICE_URL",
+          )}/auth/confirm`,
+          { params: { hash } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -209,23 +186,19 @@ export class AppController {
   @Post("customer/register")
   async registerCustomer(@Body() createCustomerDto: CreateCustomerDto) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "CUSTOMER_SERVICE_URL",
-            )}/customer/register`,
-            createCustomerDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "CUSTOMER_HTTP_SERVICE_URL",
+          )}/customer/register`,
+          createCustomerDto,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -235,23 +208,19 @@ export class AppController {
   @Post("business/register")
   async registerBusiness(@Body() createBusinessDto: CreateBusinessDto) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post<AccountWithoutPassword>(
-            `${this.configService.get<string>(
-              "BUSINESS_SERVICE_URL",
-            )}/business/register`,
-            createBusinessDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post<AccountWithoutPassword>(
+          `${this.configService.get<string>(
+            "BUSINESS_HTTP_SERVICE_URL",
+          )}/business/register`,
+          createBusinessDto,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -260,27 +229,31 @@ export class AppController {
   @ApiTags("Category")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Post("category")
-  async createCategory(@Body() createCategoryDto: CreateCategoryDto) {
+  async createCategory(
+    @Token() token: string,
+    @Body() createCategoryDto: CreateCategoryDto,
+  ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>(
-              "CATEGORY_SERVICE_URL",
-            )}/category`,
-            createCategoryDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "CATEGORY_HTTP_SERVICE_URL",
+          )}/category`,
+          createCategoryDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -290,22 +263,18 @@ export class AppController {
   @Get("category")
   async getCategories() {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "CATEGORY_SERVICE_URL",
-            )}/category`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "CATEGORY_HTTP_SERVICE_URL",
+          )}/category`,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -315,22 +284,18 @@ export class AppController {
   @Get("category/:id")
   async getCategory(@Param("id") id: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "CATEGORY_SERVICE_URL",
-            )}/category/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "CATEGORY_HTTP_SERVICE_URL",
+          )}/category/${id}`,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -339,30 +304,32 @@ export class AppController {
   @ApiTags("Category")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Patch("category/:id")
   async updateCategory(
+    @Token() token: string,
     @Param("id") id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .patch(
-            `${this.configService.get<string>(
-              "CATEGORY_SERVICE_URL",
-            )}/category/${id}`,
-            updateCategoryDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .patch(
+          `${this.configService.get<string>(
+            "CATEGORY_HTTP_SERVICE_URL",
+          )}/category/${id}`,
+          updateCategoryDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -371,26 +338,23 @@ export class AppController {
   @ApiTags("Category")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Delete("category/:id")
-  async deleteCategory(@Param("id") id: string) {
+  async deleteCategory(@Token() token: string, @Param("id") id: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .delete(
-            `${this.configService.get<string>(
-              "CATEGORY_SERVICE_URL",
-            )}/category/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .delete(
+          `${this.configService.get<string>(
+            "CATEGORY_HTTP_SERVICE_URL",
+          )}/category/${id}`,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -399,27 +363,31 @@ export class AppController {
   @ApiTags("Attribute")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Post("attribute")
-  async createAttribute(@Body() createAttributeDto: CreateAttributeDto) {
+  async createAttribute(
+    @Token() token: string,
+    @Body() createAttributeDto: CreateAttributeDto,
+  ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>(
-              "ATTRIBUTE_SERVICE_URL",
-            )}/attribute`,
-            createAttributeDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "ATTRIBUTE_HTTP_SERVICE_URL",
+          )}/attribute`,
+          createAttributeDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -429,22 +397,18 @@ export class AppController {
   @Get("attribute")
   async getAttributes() {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "ATTRIBUTE_SERVICE_URL",
-            )}/attribute`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "ATTRIBUTE_HTTP_SERVICE_URL",
+          )}/attribute`,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -454,22 +418,18 @@ export class AppController {
   @Get("attribute/:id")
   async getAttribute(@Param("id") id: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "ATTRIBUTE_SERVICE_URL",
-            )}/attribute/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "ATTRIBUTE_HTTP_SERVICE_URL",
+          )}/attribute/${id}`,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -478,30 +438,32 @@ export class AppController {
   @ApiTags("Attribute")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Patch("attribute/:id")
   async updateAttribute(
+    @Token() token: string,
     @Param("id") id: string,
     @Body() updateAttributeDto: UpdateAttributeDto,
   ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .patch(
-            `${this.configService.get<string>(
-              "ATTRIBUTE_SERVICE_URL",
-            )}/attribute/${id}`,
-            updateAttributeDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .patch(
+          `${this.configService.get<string>(
+            "ATTRIBUTE_HTTP_SERVICE_URL",
+          )}/attribute/${id}`,
+          updateAttributeDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -510,26 +472,23 @@ export class AppController {
   @ApiTags("Attribute")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Delete("attribute/:id")
-  async deleteAttribute(@Param("id") id: string) {
+  async deleteAttribute(@Token() token: string, @Param("id") id: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .delete(
-            `${this.configService.get<string>(
-              "ATTRIBUTE_SERVICE_URL",
-            )}/attribute/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .delete(
+          `${this.configService.get<string>(
+            "ATTRIBUTE_HTTP_SERVICE_URL",
+          )}/attribute/${id}`,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -539,11 +498,11 @@ export class AppController {
   @ApiBearerAuth()
   @ApiConsumes("multipart/form-data")
   @Roles(Role.ADMIN, Role.BUSINESS)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @UseInterceptors(FilesInterceptor("images"))
   @Post("product")
   async createProduct(
-    @GetUser() user: AccountWithoutPassword,
+    @Token() token: string,
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() images: Array<Express.Multer.File>,
   ) {
@@ -552,7 +511,6 @@ export class AppController {
     formData.append("name", createProductDto.name);
     formData.append("description", createProductDto.description);
     formData.append("categoryId", createProductDto.categoryId);
-
     createProductDto.attributes &&
       formData.append("attributes", createProductDto.attributes);
     createProductDto.prices &&
@@ -563,48 +521,61 @@ export class AppController {
     });
 
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>("PRODUCT_SERVICE_URL")}/product`,
-            formData,
-            {
-              headers: formData.getHeaders(),
-              params: { userId: user.id, userRole: user.role },
-            },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "PRODUCT_HTTP_SERVICE_URL",
+          )}/product`,
+          formData,
+          {
+            headers: { ...formData.getHeaders(), Authorization: token },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
   }
 
   @ApiTags("Product")
+  @ApiQuery({ name: "take", required: false })
+  @ApiQuery({ name: "cursor", required: false })
+  @ApiQuery({ name: "name", required: false })
+  @ApiQuery({ name: "categoryId", required: false })
   @Get("product")
-  async getProducts() {
+  async getProducts(
+    @Query("take", new DefaultValuePipe(8), ParseIntPipe) take: number,
+    @Query("cursor") cursor?: string,
+    @Query("name") name?: string,
+    @Query("categories", new ParseArrayPipe({ items: String, optional: true }))
+    categories?: string[],
+  ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>("PRODUCT_SERVICE_URL")}/product`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "PRODUCT_HTTP_SERVICE_URL",
+          )}/product`,
+          {
+            params: {
+              take,
+              cursor,
+              name,
+              categories,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -614,22 +585,18 @@ export class AppController {
   @Get("product/:id")
   async getProduct(@Param("id") id: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "PRODUCT_SERVICE_URL",
-            )}/product/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "PRODUCT_HTTP_SERVICE_URL",
+          )}/product/${id}`,
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -639,11 +606,11 @@ export class AppController {
   @ApiBearerAuth()
   @ApiConsumes("multipart/form-data")
   @Roles(Role.ADMIN, Role.BUSINESS)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @UseInterceptors(FilesInterceptor("images"))
   @Patch("product/:id")
   async updateProduct(
-    @GetUser() user: AccountWithoutPassword,
+    @Token() token: string,
     @Param("id") id: string,
     @Body() updateProductDto: UpdateProductDto,
     @UploadedFiles() images: Array<Express.Multer.File>,
@@ -665,27 +632,22 @@ export class AppController {
     });
 
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .patch(
-            `${this.configService.get<string>(
-              "PRODUCT_SERVICE_URL",
-            )}/product/${id}`,
-            formData,
-            {
-              headers: formData.getHeaders(),
-              params: { userId: user.id, userRole: user.role },
-            },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .patch(
+          `${this.configService.get<string>(
+            "PRODUCT_HTTP_SERVICE_URL",
+          )}/product/${id}`,
+          formData,
+          {
+            headers: { ...formData.getHeaders(), Authorization: token },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -693,58 +655,181 @@ export class AppController {
   @ApiTags("Product")
   @ApiBearerAuth()
   @Roles(Role.ADMIN, Role.BUSINESS)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Delete("product/:id")
-  async deleteProduct(
-    @GetUser() user: AccountWithoutPassword,
-    @Param("id") id: string,
+  async deleteProduct(@Token() token: string, @Param("id") id: string) {
+    try {
+      return this.httpService
+        .delete(
+          `${this.configService.get<string>(
+            "PRODUCT_HTTP_SERVICE_URL",
+          )}/product/${id}`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @ApiTags("Discount")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
+  @Post("discount")
+  async createDiscount(
+    @Token() token: string,
+    @Body() createDiscountDto: CreateDiscountDto,
   ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .delete(
-            `${this.configService.get<string>(
-              "PRODUCT_SERVICE_URL",
-            )}/product/${id}`,
-            { params: { userId: user.id, userRole: user.role } },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "DISCOUNT_HTTP_SERVICE_URL",
+          )}/discount`,
+          createDiscountDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
   }
 
-  @ApiTags("Cart")
+  @ApiTags("Discount")
   @ApiBearerAuth()
-  @Roles(Role.CUSTOMER)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Get("cart")
-  async getCart(@GetUser() user: AccountWithoutPassword) {
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
+  @Get("discount")
+  async getDiscounts(@Token() token: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>("CART_SERVICE_URL")}/cart/${
-              user.id
-            }`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "DISCOUNT_HTTP_SERVICE_URL",
+          )}/discount`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
+    } catch (error) {
+      throw error;
+    }
+  }
 
-      return response;
+  @ApiTags("Discount")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
+  @Get("discount/:id")
+  async getDiscount(@Token() token: string, @Param("id") id: string) {
+    try {
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "DISCOUNT_HTTP_SERVICE_URL",
+          )}/discount/${id}`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @ApiTags("Discount")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
+  @Patch("discount/:id")
+  async updateDiscount(
+    @Token() token: string,
+    @Param("id") id: string,
+    @Body() updateDiscountDto: UpdateDiscountDto,
+  ) {
+    try {
+      return this.httpService
+        .patch(
+          `${this.configService.get<string>(
+            "DISCOUNT_HTTP_SERVICE_URL",
+          )}/discount/${id}`,
+          updateDiscountDto,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @ApiTags("Discount")
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard)
+  @Delete("discount/:id")
+  async deleteDiscount(@Token() token: string, @Param("id") id: string) {
+    try {
+      return this.httpService
+        .delete(
+          `${this.configService.get<string>(
+            "DISCOUNT_HTTP_SERVICE_URL",
+          )}/discount/${id}`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -753,30 +838,48 @@ export class AppController {
   @ApiTags("Cart")
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
+  @Get("cart")
+  async getCart(@Token() token: string) {
+    try {
+      return this.httpService
+        .get(
+          `${this.configService.get<string>("CART_HTTP_SERVICE_URL")}/cart`,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @ApiTags("Cart")
+  @ApiBearerAuth()
+  @Roles(Role.CUSTOMER)
+  @UseGuards(AuthGuard)
   @Post("cart")
   async addToCart(
-    @GetUser() user: AccountWithoutPassword,
+    @Token() token: string,
     @Body() createCartDto: CreateCartDto,
   ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>("CART_SERVICE_URL")}/cart/${
-              user.id
-            }`,
-            createCartDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>("CART_HTTP_SERVICE_URL")}/cart`,
+          createCartDto,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -786,34 +889,31 @@ export class AppController {
   @ApiBearerAuth()
   @ApiQuery({ name: "discountCode", required: false })
   @Roles(Role.CUSTOMER)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Get("cart/total")
   async getCartTotal(
-    @GetUser() user: AccountWithoutPassword,
+    @Token() token: string,
     @Query("discountCode") discountCode?: string,
   ) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>("CART_SERVICE_URL")}/cart/total/${
-              user.id
-            }`,
-            {
-              params: {
-                discountCode,
-              },
+      return this.httpService
+        .get(
+          `${this.configService.get<string>(
+            "CART_HTTP_SERVICE_URL",
+          )}/cart/total`,
+          {
+            headers: { Authorization: token },
+            params: {
+              discountCode,
             },
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+          },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -822,175 +922,24 @@ export class AppController {
   @ApiTags("Cart")
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Post("cart/checkout")
-  async checkout(
-    @GetUser() user: AccountWithoutPassword,
-    @Body() checkoutDto: CheckoutDto,
-  ) {
+  async checkout(@Token() token: string, @Body() checkoutDto: CheckoutDto) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>(
-              "CART_SERVICE_URL",
-            )}/cart/checkout/${user.id}`,
-            checkoutDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @ApiTags("Discount")
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Post("discount")
-  async createDiscount(@Body() createDiscountDto: CreateDiscountDto) {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .post(
-            `${this.configService.get<string>(
-              "DISCOUNT_SERVICE_URL",
-            )}/discount`,
-            createDiscountDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @ApiTags("Discount")
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Get("discount")
-  async getDiscounts() {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "DISCOUNT_SERVICE_URL",
-            )}/discount`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @ApiTags("Discount")
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Get("discount/:id")
-  async getDiscount(@Param("id") id: string) {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(
-            `${this.configService.get<string>(
-              "DISCOUNT_SERVICE_URL",
-            )}/discount/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @ApiTags("Discount")
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Patch("discount/:id")
-  async updateDiscount(
-    @Param("id") id: string,
-    @Body() updateDiscountDto: UpdateDiscountDto,
-  ) {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .patch(
-            `${this.configService.get<string>(
-              "DISCOUNT_SERVICE_URL",
-            )}/discount/${id}`,
-            updateDiscountDto,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @ApiTags("Discount")
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
-  @Delete("discount/:id")
-  async deleteDiscount(@Param("id") id: string) {
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .delete(
-            `${this.configService.get<string>(
-              "DISCOUNT_SERVICE_URL",
-            )}/discount/${id}`,
-          )
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .post(
+          `${this.configService.get<string>(
+            "CART_HTTP_SERVICE_URL",
+          )}/cart/checkout`,
+          checkoutDto,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
@@ -999,22 +948,21 @@ export class AppController {
   @ApiTags("Order")
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  @UseGuards(AuthGuard, RoleGuard)
+  @UseGuards(AuthGuard)
   @Get("order")
-  async findMany() {
+  async findMany(@Token() token: string) {
     try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get(`${this.configService.get<string>("ORDER_SERVICE_URL")}/order`)
-          .pipe(
-            map((response) => response.data),
-            catchError((error: AxiosError) => {
-              throw error.response.data;
-            }),
-          ),
-      );
-
-      return response;
+      return this.httpService
+        .get(
+          `${this.configService.get<string>("ORDER_HTTP_SERVICE_URL")}/order`,
+          { headers: { Authorization: token } },
+        )
+        .pipe(
+          map((response) => response.data),
+          catchError((error: AxiosError) => {
+            throw error.response.data;
+          }),
+        );
     } catch (error) {
       throw error;
     }
